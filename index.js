@@ -2,7 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
-const authRoutes = require("./routes/authRoutes");
+const main_routes = require("./routes/main_routes");
 const userRoutes = require("./routes/user/user_root_routes");
 const adminRoutes = require("./routes/admin/admin_root_routes");
 
@@ -45,7 +45,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
 
-app.use("/api/auth", authRoutes);
+app.use("/api",main_routes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
 

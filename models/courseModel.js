@@ -21,10 +21,7 @@ const courseSchema = new mongoose.Schema(
       type: String,
       enum: ["Yes", "No"],
     },
-    // category: {
-    //   type: String,
-    //   required: true,
-    // },
+ 
     thumbnail: {
       public_id: {
         type: String,
@@ -58,20 +55,19 @@ const courseSchema = new mongoose.Schema(
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // admin user
+      ref: "User", 
       required: true,
     },
 
     price: {
       type: Number,
-      default: 0, // 0 = free course
+      default: 0, 
     },
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt fields
+    timestamps: true, 
   }
 );
 
-// Apply the AutoIncrement plugin to the schema for subject_id
-// courseSchema.plugin(AutoIncrement, { inc_field: "course_id" });
+
 module.exports = mongoose.model("course", courseSchema);

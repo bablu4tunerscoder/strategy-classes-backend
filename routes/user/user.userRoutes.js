@@ -7,29 +7,27 @@ const { requestContactChange, verifyContactChange } = require("../../controllers
 
 
 
-router.delete("/:userId", authCheck, userController.deleteUser);
+
+router.post(
+  "/user-profile",
+  authCheck,
+  userController.getMyProfile
+);
 
 router.post(
   "/upload-profile-image",
   upload.single("profileImage"),
   authCheck,
-  userController.uploadProfileImage
+  userController.uploadMyProfileImage
 );
 
 // Route to store quiz attempt
-router.post("/store-attempt", userController.storeQuizAttempt);
+router.post("/store-quiz-attempt",authCheck, userController.storeQuizAttempt);
 
-// Route to get a specific user by userId
-router.get("/:userId", userController.getUser);
 
 // Route to get a specific user overall rank
-router.get("/rank/:userId", userController.getUserRank);
+router.get("/my-rank",authCheck, userController.getMyRank);
 
-// Route to get ranking of user in a specific quiz
-router.get(
-  "/quiz/:quiz_id/user/:userId/rank",
-  userController.fetchUserQuizRank
-);
 
 router.post("/contact-change/request", authCheck, requestContactChange);
 router.post("/contact-change/verify", authCheck, verifyContactChange);

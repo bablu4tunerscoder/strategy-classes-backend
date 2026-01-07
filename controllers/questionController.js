@@ -1,139 +1,183 @@
 const { Question } = require("../models/questionModel");
 const Postquiz = require("../models/quizdataModel");
+const mongoose = require("mongoose");
 
-// Get all questions
+/* =====================================
+   1️⃣ Get All Questions
+===================================== */
 const getAllQuestions = async (req, res) => {
   try {
-    const questions = await Question.find();
-    if (questions.length === 0) {
+    const questions = await Question.find().populate("quiz");
+
+    if (!questions || questions.length === 0) {
       return res.status(404).json({ message: "No questions found" });
     }
+
     res.status(200).json({
       message: "Questions retrieved successfully",
       data: questions,
     });
   } catch (error) {
-    res.status(500).json({
-      error: "An error occurred while fetching questions",
-      details: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
+/* =====================================
+   2️⃣ Create Question (FULL VALIDATION)
+===================================== */
 const createQuestions = async (req, res) => {
   try {
     const {
-      quiz_id,
+      quiz,
       topic,
       question,
       options,
-      correctAnswer,
+      correctOptionId,
       marks,
       answer_explanation,
     } = req.body;
 
-    // Validate required fields
-    if (
-      !quiz_id ||
-      !question ||
-      !options ||
-      !correctAnswer ||
-      !answer_explanation
-    ) {
+    /* ---------- BASIC VALIDATIONS ---------- */
+    if (!quiz || !question || !options || correctOptionId === undefined) {
       return res.status(400).json({
         error: "Missing required fields",
-        requiredFields: [
-          "quiz_id",
-          "question",
-          "options",
-          "correctAnswer",
-          "answer_explanation",
-        ],
+        required: ["quiz", "question", "options", "correctOptionId"],
       });
     }
 
-    // Generate custom question_id
-    const question_id = Date.now().toString();
+    if (!mongoose.Types.ObjectId.isValid(quiz)) {
+      return res.status(400).json({ error: "Invalid quiz ID" });
+    }
 
-    // Create a new question
-    const newQuestion = new Question({
-      question_id,
-      quiz_id,
+    if (typeof question !== "string" || question.trim().length < 5) {
+      return res.status(400).json({ error: "Question must be valid text" });
+    }
+
+    /* ---------- QUIZ EXISTS ---------- */
+    const quizExists = await Postquiz.findById(quiz);
+    if (!quizExists) {
+      return res.status(404).json({ error: "Quiz not found" });
+    }
+
+    /* ---------- OPTIONS VALIDATION ---------- */
+    if (!Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({
+        error: "Options must be an array with at least 2 items",
+      });
+    }
+
+    for (const opt of options) {
+      if (
+        typeof opt.id !== "number" ||
+        typeof opt.text !== "string" ||
+        !opt.text.trim()
+      ) {
+        return res.status(400).json({
+          error: "Each option must have valid id and text",
+        });
+      }
+    }
+
+    /* ---------- CORRECT OPTION VALIDATION ---------- */
+    const validCorrect = options.some(o => o.id === correctOptionId);
+    if (!validCorrect) {
+      return res.status(400).json({
+        error: "correctOptionId must match one of the option ids",
+      });
+    }
+
+    /* ---------- MARKS VALIDATION ---------- */
+    if (marks !== undefined && (typeof marks !== "number" || marks < 0)) {
+      return res.status(400).json({ error: "Marks must be a positive number" });
+    }
+
+    /* ---------- CREATE QUESTION ---------- */
+    const newQuestion = await Question.create({
+      quiz,
       topic,
       question,
       options,
-      correctAnswer,
-      marks,
-      answer_explanation,
+      correctOptionId,
+      marks: marks || 0,
+      answer_explanation: answer_explanation || "",
     });
-
-    // Save the new question
-    await newQuestion.save();
-
-    // Create a question object to push to the quiz's questionArray
-    const questionObject = {
-      question_id,
-      question,
-    };
-
-    // Update the quiz's questionArray with the custom question_id
-    const updatedQuiz = await Postquiz.findOneAndUpdate(
-      { quiz_id },
-      { $push: { questionArray: questionObject } }, // Push the string question_id
-      { new: true } // Return the updated document
-    );
-
-    if (!updatedQuiz) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
 
     res.status(201).json({
       message: "Question created successfully",
       data: newQuestion,
     });
   } catch (error) {
-    console.error("Error creating question:", error);
-    res.status(500).json({
-      error: "An error occurred while creating the question",
-      details: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Update a question by ID
+/* =====================================
+   3️⃣ Update Question (SAFE UPDATE)
+===================================== */
 const updateQuestionById = async (req, res) => {
   try {
-    const { id } = req.params; // This should be question_id, not _id
+    const { id } = req.params;
 
-    const updatedQuestion = await Question.findOneAndUpdate(
-      { question_id: id }, // Find by question_id instead of _id
-      req.body,
-      {
-        new: true,
-        runValidators: true, // Ensures validations are applied during updates
-      }
-    );
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid question ID" });
+    }
 
-    if (!updatedQuestion) {
+    const questionDoc = await Question.findById(id);
+    if (!questionDoc) {
       return res.status(404).json({ error: "Question not found" });
     }
 
+    const { question, options, correctOptionId, marks } = req.body;
+
+    if (question && (typeof question !== "string" || question.trim().length < 5)) {
+      return res.status(400).json({ error: "Invalid question text" });
+    }
+
+    if (options) {
+      if (!Array.isArray(options) || options.length < 2) {
+        return res.status(400).json({ error: "Invalid options array" });
+      }
+
+      for (const opt of options) {
+        if (typeof opt.id !== "number" || typeof opt.text !== "string") {
+          return res.status(400).json({ error: "Invalid option format" });
+        }
+      }
+    }
+
+    if (correctOptionId !== undefined && options) {
+      const isValid = options.some(o => o.id === correctOptionId);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid correct option id" });
+      }
+    }
+
+    if (marks !== undefined && (typeof marks !== "number" || marks < 0)) {
+      return res.status(400).json({ error: "Invalid marks" });
+    }
+
+    Object.assign(questionDoc, req.body);
+    await questionDoc.save();
+
     res.status(200).json({
       message: "Question updated successfully",
-      data: updatedQuestion,
+      data: questionDoc,
     });
   } catch (error) {
-    res.status(500).json({
-      error: "An error occurred while updating the question",
-      details: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Delete a question by ID
+/* =====================================
+   4️⃣ Delete Question
+===================================== */
 const deleteById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid question ID" });
+    }
 
     const deletedQuestion = await Question.findByIdAndDelete(id);
 
@@ -146,31 +190,35 @@ const deleteById = async (req, res) => {
       data: deletedQuestion,
     });
   } catch (error) {
-    res.status(500).json({
-      error: "An error occurred while deleting the question",
-      details: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Fetch all questions based on quiz_id
+/* =====================================
+   5️⃣ Get Questions by Quiz ID
+===================================== */
 const getQuestionsByQuizId = async (req, res) => {
   try {
-    const quizId = req.params.quiz_id;
+    const { quiz_id } = req.params;
 
-    // Fetch all questions that have the given quiz_id
-    const questions = await Question.find({ quiz_id: quizId });
-
-    if (!questions || questions.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No questions found for this quiz." });
+    if (!mongoose.Types.ObjectId.isValid(quiz_id)) {
+      return res.status(400).json({ error: "Invalid quiz ID" });
     }
 
-    return res.status(200).json(questions);
+    const questions = await Question.find({ quiz: quiz_id });
+
+    if (!questions.length) {
+      return res.status(404).json({
+        message: "No questions found for this quiz",
+      });
+    }
+
+    res.status(200).json({
+      message: "Questions fetched successfully",
+      data: questions,
+    });
   } catch (error) {
-    console.error("Error fetching questions:", error);
-    return res.status(500).json({ message: "Server error." });
+    res.status(500).json({ error: error.message });
   }
 };
 

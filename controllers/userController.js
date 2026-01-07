@@ -77,7 +77,6 @@ const getUserById = async (req, res) => {
   res.json({ success: true, data: user });
 };
 
-// ✅ Delete user
 
 const deleteUser = async (req, res) => {
   try {

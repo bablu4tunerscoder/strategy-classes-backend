@@ -375,6 +375,5 @@ module.exports = {
   forgotPassword,
   resendVerificationOTP,
   resetPassword,
-  
 };
 
