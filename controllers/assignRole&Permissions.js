@@ -52,8 +52,6 @@ const assignUserRole = async (req, res) => {
   }
 };
 
-
-
 const updateAdminPermissions = async (req, res) => {
   try {
     const { userId, permissions } = req.body;
@@ -115,6 +113,7 @@ const getAdminUsers = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 
 module.exports = {assignUserRole, updateAdminPermissions, getAdminUsers};

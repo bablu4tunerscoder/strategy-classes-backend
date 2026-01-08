@@ -9,10 +9,7 @@ const { authCheck, permissionCheck } = require("../../middlewares/middleware");
 router.get("/users",authCheck, permissionCheck('user'),  userController.getAllUsers);
 router.get("/:userId",authCheck, permissionCheck('user'), userController.getUserById);
 router.delete("/:userId", authCheck, permissionCheck('user'), userController.deleteUser);
-
-
 router.delete("/:userId", authCheck, permissionCheck('user'), userController.getUserRank);
-
 
 
 module.exports = router;

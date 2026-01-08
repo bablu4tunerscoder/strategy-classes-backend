@@ -1,18 +1,104 @@
-const {
-  getAllQuizzes,
-  getQuizById,
-  deleteQuizById,
-  updateQuizById,
-} = require("../services/quizService");
-const Postquiz = require("../models/quizdataModel");
-
+const PostQuiz = require("../models/quizdataModel");
 const path = require("path");
+const mongoose = require("mongoose");
 
+const isValidObjectId = (id) =>
+  mongoose.Types.ObjectId.isValid(id);
+
+
+/* ================= CREATE QUIZ ================= */
+const createNewQuiz = async (req, res) => {
+  try {
+    const {
+      title,
+      subject,
+      course,
+      topic,
+      isPaid,
+      price,
+      negativeMarking,
+      negativeMarkingValue,
+      duration,
+    } = req.body;
+
+    // Required
+    if (!title || !subject || !course || !duration) {
+      return res.status(400).json({
+        error: "Required fields missing",
+      });
+    }
+
+    // ObjectId validation
+    if (!isValidObjectId(subject) || !isValidObjectId(course)) {
+      return res.status(400).json({
+        error: "Invalid subject or course id",
+      });
+    }
+
+    // Duration
+    if (isNaN(duration) || duration <= 0) {
+      return res.status(400).json({
+        error: "Duration must be a positive number",
+      });
+    }
+
+    // Paid logic
+    if (isPaid && (!price || price <= 0)) {
+      return res.status(400).json({
+        error: "Price required for paid quiz",
+      });
+    }
+
+    // Negative marking logic
+    if (negativeMarking && negativeMarkingValue <= 0) {
+      return res.status(400).json({
+        error: "Negative marking value must be greater than 0",
+      });
+    }
+
+    // Thumbnail
+    const thumbnailFile = req.files?.thumbnail?.[0];
+    if (!thumbnailFile) {
+      return res.status(400).json({ error: "Thumbnail is required" });
+    }
+
+    const quiz = await PostQuiz.create({
+      title,
+      subject,
+      course,
+      topic,
+      isPaid: Boolean(isPaid),
+      price: isPaid ? Number(price) : 0,
+      negativeMarking: Boolean(negativeMarking),
+      negativeMarkingValue: negativeMarking
+        ? Number(negativeMarkingValue)
+        : 0,
+      duration: Number(duration),
+      thumbnail: {
+        public_id: thumbnailFile.filename,
+        secure_url: path.relative(__dirname, thumbnailFile.path),
+      },
+    });
+
+    res.status(201).json({
+      message: "Quiz created successfully",
+      data: quiz,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+/* ================= GET ALL QUIZZES ================= */
 const getQuizzes = async (req, res) => {
   try {
-    const quizzes = await getAllQuizzes();
+    const quizzes = await PostQuiz.find()
+      .populate("subject", "title")
+      .populate("course", "title");
+
     res.status(200).json({
-      message: "All Quizzes Fetched Successfully",
+      message: "All quizzes fetched",
       data: quizzes,
     });
   } catch (err) {
@@ -20,178 +106,94 @@ const getQuizzes = async (req, res) => {
   }
 };
 
-const createNewQuiz = async (req, res) => {
+/* ================= GET QUIZ BY ID ================= */
+const getQuizById = async (req, res) => {
   try {
-    const {
-      title,
-      subject_id,
-      subject_name,
-      course_id,
-      course_name,
-      topic,
-      questionArray,
-      paid,
-      price,
-      negativeMarking,
-      negativeMarkingValue,
-      duration,
-    } = req.body;
-
-    // Validate required fields
-    if (!title || !subject_id || !course_id || !duration) {
-      return res.status(400).json({
-        error: "Missing required fields",
-        requiredFields: ["title", "subject_id", "course_id", "duration"],
-      });
-    }
-
-    // Process Thumbnail
-    const thumbnailFile = req.files?.["thumbnail"]?.[0];
-    if (!thumbnailFile) {
-      return res.status(400).json({ error: "Thumbnail is required" });
-    }
-
-    const thumbnail = {
-      public_id: thumbnailFile.filename,
-      secure_url: path.relative(__dirname, thumbnailFile.path),
-    };
-
-    // Validate questionArray if provided
-    if (questionArray) {
-      try {
-        JSON.parse(questionArray); // Ensure it's a valid JSON array
-      } catch (err) {
-        return res.status(400).json({
-          error: "Invalid questionArray format. Must be a valid JSON array.",
-        });
-      }
-    }
-
-    // Create a new quiz
-    const quiz = new Postquiz({
-      quiz_id: Date.now().toString(),
-      subject_id,
-      subject_name,
-      course_id,
-      course_name,
-      topic,
-      questionArray: questionArray ? JSON.parse(questionArray) : [],
-      title,
-      thumbnail,
-      paid: paid || false,
-      price: price || 0,
-      negativeMarking: negativeMarking || false,
-      negativeMarkingValue : negativeMarkingValue || 0,
-      duration,
-    });
-
-    await quiz.save();
-
-    res.status(201).json({
-      message: "Quiz created successfully",
-      data: quiz,
-    });
-  } catch (err) {
-    console.error("Error creating quiz:", err);
-    res.status(500).json({
-      error: "An error occurred while creating the quiz",
-      details: err.message,
-    });
-  }
-};
-
-const getQuizByIdController = async (req, res) => {
-  try {
-    const quizId = req.params.id;
-    const quiz = await getQuizById(quizId);
-    res.status(200).json({
-      message: "Fetched Quiz Successfully",
-      data: quiz,
-    });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-    console.log(err);
-  }
-};
-
-const deleteQuizByIdController = async (req, res) => {
-  try {
-    const quizId = req.params.id;
-    const quiz = await deleteQuizById(quizId);
-    res.status(200).json({
-      message: `Quiz with ${quizId} Deleted successfully`,
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-const updateQuiz = async (req, res) => {
-  try {
-    const { quiz_id } = req.params;
-    const {
-      title,
-      subject_id,
-      subject_name,
-      course_id,
-      course_name,
-      topic,
-      questionArray,
-      paid,
-      price,
-      negativeMarking,
-      negativeMarkingValue,
-      duration,
-    } = req.body;
-
-    // Validate required fields (optional: you can adjust according to your needs)
-    if (!quiz_id) {
-      return res.status(400).json({ error: "quiz_id is required" });
-    }
-
-    // Fetch the existing quiz
-    const quiz = await Postquiz.findOne({ quiz_id });
+    const quiz = await PostQuiz.findById(req.params.id)
+      .populate("subject")
+      .populate("course");
 
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found" });
     }
 
-    // Update fields if new data is provided, otherwise keep existing values
-    if (title) quiz.title = title;
-    if (subject_id) quiz.subject_id = subject_id;
-    if (subject_name) quiz.subject_name = subject_name;
-    if (course_id) quiz.course_id = course_id;
-    if (course_name) quiz.course_name = course_name;
-    if (topic) quiz.topic = topic;
+    res.status(200).json({ data: quiz });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
 
-    if (questionArray) {
-      try {
-        quiz.questionArray = JSON.parse(questionArray); // Ensure it's a valid JSON array
-      } catch (err) {
-        return res.status(400).json({
-          error: "Invalid questionArray format. Must be a valid JSON array.",
-        });
-      }
+/* ================= UPDATE QUIZ ================= */
+const updateQuiz = async (req, res) => {
+  try {
+    const quiz = await PostQuiz.findById(req.params.id);
+    if (!quiz) {
+      return res.status(404).json({ error: "Quiz not found" });
     }
 
-    if (paid !== undefined) quiz.paid = paid; // Handle paid (could be a boolean)
-    if (price !== undefined) quiz.price = price; // Handle price (could be a number)
-    if (negativeMarking !== undefined) quiz.negativeMarking = negativeMarking; // Handle negativeMarking (could be a boolean)
-    if (negativeMarkingValue != undefined)
-      quiz.negativeMarkingValue = negativeMarkingValue;
-    if (duration !== undefined) quiz.duration = duration; // Handle duration
+    const allowedFields = [
+      "title",
+      "subject",
+      "course",
+      "topic",
+      "isPaid",
+      "price",
+      "negativeMarking",
+      "negativeMarkingValue",
+      "duration",
+    ];
 
-    // Process Thumbnail (only if a new one is provided)
-    const thumbnailFile = req.files?.["thumbnail"]?.[0];
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        quiz[field] = req.body[field];
+      }
+    });
+
+    // ObjectId validation
+    if (
+      quiz.subject &&
+      !isValidObjectId(quiz.subject)
+    ) {
+      return res.status(400).json({ error: "Invalid subject id" });
+    }
+
+    if (
+      quiz.course &&
+      !isValidObjectId(quiz.course)
+    ) {
+      return res.status(400).json({ error: "Invalid course id" });
+    }
+
+    // Paid validation
+    if (quiz.isPaid && quiz.price <= 0) {
+      return res.status(400).json({
+        error: "Paid quiz must have price",
+      });
+    }
+
+    // Negative marking validation
+    if (quiz.negativeMarking && quiz.negativeMarkingValue <= 0) {
+      return res.status(400).json({
+        error: "Invalid negative marking value",
+      });
+    }
+
+    // Duration
+    if (quiz.duration <= 0) {
+      return res.status(400).json({
+        error: "Duration must be positive",
+      });
+    }
+
+    // Thumbnail
+    const thumbnailFile = req.files?.thumbnail?.[0];
     if (thumbnailFile) {
-      const thumbnail = {
+      quiz.thumbnail = {
         public_id: thumbnailFile.filename,
         secure_url: path.relative(__dirname, thumbnailFile.path),
       };
-      quiz.thumbnail = thumbnail; // Update thumbnail if provided
     }
 
-    // Save updated quiz
     await quiz.save();
 
     res.status(200).json({
@@ -199,48 +201,43 @@ const updateQuiz = async (req, res) => {
       data: quiz,
     });
   } catch (err) {
-    console.error("Error updating quiz:", err);
-    res.status(500).json({
-      error: "An error occurred while updating the quiz",
-      details: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
 };
 
+
+/* ================= DELETE QUIZ ================= */
+const deleteQuizById = async (req, res) => {
+  try {
+    await PostQuiz.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: "Quiz deleted successfully" });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+/* ================= GET QUIZ BY COURSE ================= */
 const getQuizWithCourseId = async (req, res) => {
   try {
-    const { course_id } = req.params;
+    const quizzes = await PostQuiz.find({
+      course: req.params.course_id,
+    });
 
-    // Find quizzes with the specified course_id
-    const quizzes = await Postquiz.find({ course_id });
-
-    if (quizzes.length === 0) {
-      return res.status(404).json({
-        Status: "0",
-        message: "No quizzes found for the given course_id",
-      });
+    if (!quizzes.length) {
+      return res.status(404).json({ message: "No quizzes found" });
     }
 
-    res.status(200).json({
-      Status: "1",
-      message: "Quizzes With Course Id  retrieved successfully",
-      data: quizzes,
-    });
-  } catch (error) {
-    console.error("Error fetching courses:", error);
-    res.status(500).json({
-      Status: "0",
-      message: "Internal server error",
-      error: error.message,
-    });
+    res.status(200).json({ data: quizzes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
 module.exports = {
-  getQuizzes,
   createNewQuiz,
-  getQuizByIdController,
-  deleteQuizByIdController,
+  getQuizzes,
+  getQuizById,
   updateQuiz,
+  deleteQuizById,
   getQuizWithCourseId,
 };

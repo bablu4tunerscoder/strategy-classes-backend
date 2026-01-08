@@ -2,9 +2,12 @@ const express = require("express");
 const router = express.Router();
 const BlogsController = require("../../controllers/blogController");
 const upload = require("../../middlewares/multer-config");
+const { authCheck, permissionCheck } = require("../../middlewares/middleware");
 
 router.post(
   "/createBlogs",
+  authCheck,
+  permissionCheck("blog"),
   upload.fields([
     {
       name: "thumbnail",
@@ -16,6 +19,8 @@ router.post(
 
 router.put(
   "/updateBlog/:blog_id",
+   authCheck,
+   permissionCheck("blog"),
   upload.fields([
     {
       name: "thumbnail",
@@ -25,14 +30,14 @@ router.put(
   BlogsController.updateBlog
 );
 
-router.get("/findAllBlogsByAdmin", BlogsController.findAllBlogsByAdmin);
+router.get("/findAllBlogsByAdmin", authCheck,permissionCheck("blog"), BlogsController.findAllBlogsByAdmin);
 
-router.delete("/deleteBlog/:blog_id", BlogsController.deleteBlogsById);
+router.delete("/deleteBlog/:blog_id", authCheck, permissionCheck("blog"),BlogsController.deleteBlogsById);
 
-router.get("/findOneBlogbyId/:blog_id", BlogsController.findOneBlogById);
+router.get("/findOneBlogbyId/:blog_id", authCheck,permissionCheck("blog"), BlogsController.findOneBlogById);
 
 router.put(
-  "/blog_recommended/:blog_id",
+  "/blog_recommended/:blog_id", authCheck,permissionCheck("blog"),
   BlogsController.updateBlogRecommendation
 );
 

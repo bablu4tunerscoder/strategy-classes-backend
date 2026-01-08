@@ -1,9 +1,6 @@
 const express = require("express");
 const {
   getAllQuestions,
-  createQuestions,
-  deleteById,
-  updateQuestionById,
   getQuestionsByQuizId,
 } = require("../controllers/questionController");
 
@@ -11,9 +8,6 @@ const router = express.Router();
 
 // Get all quizzes
 router.get("/", getAllQuestions);
-
-// Update quiz by ID
-router.put("/:id", updateQuestionById);
 
 // get questions with quiz_id api
 router.get("/questionsWithQuizId/:quiz_id", getQuestionsByQuizId);

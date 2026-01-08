@@ -24,7 +24,6 @@ router.post(
 // Route to store quiz attempt
 router.post("/store-quiz-attempt",authCheck, userController.storeQuizAttempt);
 
-
 // Route to get a specific user overall rank
 router.get("/my-rank",authCheck, userController.getMyRank);
 

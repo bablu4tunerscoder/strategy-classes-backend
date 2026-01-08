@@ -22,9 +22,7 @@ const getAllQuestions = async (req, res) => {
   }
 };
 
-/* =====================================
-   2️⃣ Create Question (FULL VALIDATION)
-===================================== */
+
 const createQuestions = async (req, res) => {
   try {
     const {
@@ -37,7 +35,7 @@ const createQuestions = async (req, res) => {
       answer_explanation,
     } = req.body;
 
-    /* ---------- BASIC VALIDATIONS ---------- */
+    
     if (!quiz || !question || !options || correctOptionId === undefined) {
       return res.status(400).json({
         error: "Missing required fields",
@@ -111,9 +109,7 @@ const createQuestions = async (req, res) => {
   }
 };
 
-/* =====================================
-   3️⃣ Update Question (SAFE UPDATE)
-===================================== */
+
 const updateQuestionById = async (req, res) => {
   try {
     const { id } = req.params;
