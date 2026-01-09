@@ -1,3 +1,4 @@
+const { pagination_ } = require("../helpers/pagination");
 const subjectModel = require("../models/subjectModel");
 const mongoose = require("mongoose");
 
@@ -41,13 +42,51 @@ const addSubjects = async (req, res) => {
 
 
 // get all subject api
+
 const findAllSubjects = async (req, res) => {
   try {
-    const subjects = await subjectModel.find();
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const [subjects, total] = await Promise.all([
+      subjectModel
+        .find()
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      subjectModel.countDocuments(),
+    ]);
+
+    if (!subjects.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No subjects found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
+    }
 
     res.status(200).json({
       status: "1",
       message: "Subjects fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + subjects.length < total,
+      },
       data: subjects,
     });
   } catch (error) {
@@ -57,6 +96,7 @@ const findAllSubjects = async (req, res) => {
     });
   }
 };
+
 
 // find by id subject api
 const findById = async (req, res) => {

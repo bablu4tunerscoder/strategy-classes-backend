@@ -1,3 +1,4 @@
+const { pagination_ } = require("../helpers/pagination");
 const courseModel = require("../models/courseModel");
 
 
@@ -52,14 +53,52 @@ const addCourse = async (req, res) => {
   }
 };
 
-// API to get all courses with subject details
-const findAllCourses = async (req, res) => {
-  const courses = await courseModel
-    .find()
-    .populate("subject")
-    .populate("createdBy", "name email");
 
-  res.json({ status: "1", data: courses });
+
+const findAllCourses = async (req, res) => {
+  try {
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const [courses, total] = await Promise.all([
+      courseModel
+        .find()
+        .populate("subject")
+        .populate("createdBy", "name email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      courseModel.countDocuments(),
+    ]);
+
+    if (!courses.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No courses found",
+      });
+    }
+
+    res.json({
+      status: "1",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + courses.length < total,
+      },
+      data: courses,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "0",
+      message: "Internal Server Error",
+    });
+  }
 };
 
 
@@ -181,15 +220,52 @@ const deleteCourses = async (req, res) => {
 };
 
 
-// get courses by subject_id API
 const getCoursesWithSubjectId = async (req, res) => {
   try {
-   const courses = await courseModel.find({ subject: req.params.subjectId });
-   res.json({ data: courses });
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = { subject: req.params.subjectId };
+
+    const [courses, total] = await Promise.all([
+      courseModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      courseModel.countDocuments(filter),
+    ]);
+
+    if (!courses.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No courses found for this subject",
+      });
+    }
+
+    res.json({
+      status: "1",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + courses.length < total,
+      },
+      data: courses,
+    });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({
+      status: "0",
+      error: e.message,
+    });
   }
 };
+
 
 
 //API to add only lectures

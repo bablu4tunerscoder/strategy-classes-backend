@@ -1,3 +1,4 @@
+const { pagination_ } = require("../helpers/pagination");
 const User = require("../models/userModel");
 
 const assignUserRole = async (req, res) => {
@@ -93,26 +94,46 @@ const updateAdminPermissions = async (req, res) => {
   }
 };
 
+
 const getAdminUsers = async (req, res) => {
   try {
-    const users = await User.find(
-      { role: { $in: ["admin", "superadmin"] } },
-      {
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = { role: { $in: ["admin", "superadmin"] } };
+
+    const [users, total] = await Promise.all([
+      User.find(filter, {
         password: 0,
         otp: 0,
         otpExpires: 0,
-      }
-    ).sort({ createdAt: -1 });
+      })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      User.countDocuments(filter),
+    ]);
 
     res.json({
       message: "Admin users fetched successfully",
-      count: users.length,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + users.length < total,
+      },
       data: users,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 
 

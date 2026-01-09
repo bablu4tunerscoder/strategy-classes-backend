@@ -2,16 +2,63 @@ const mongoose = require("mongoose");
 const TestQuestion = require("../models/testQuestionModel");
 const PostTestSeries = require("../models/testSeriesPostModels");
 const TestSeriesQuestion = require("../models/testSeriesQuestionModels");
+const { pagination_ } = require("../helpers/pagination");
 
 /* ================= GET ALL QUESTIONS ================= */
+
 exports.getAllQuestions = async (req, res) => {
   try {
-    const questions = await TestQuestion.find();
-    res.status(200).json({ data: questions });
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const [questions, total] = await Promise.all([
+      TestQuestion.find()
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      TestQuestion.countDocuments(),
+    ]);
+
+    if (!questions.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No questions found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
+    }
+
+    res.status(200).json({
+      status: "1",
+      message: "Questions fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + questions.length < total,
+      },
+      data: questions,
+    });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({
+      status: "0",
+      error: e.message,
+    });
   }
 };
+
 
 /* ================= CREATE QUESTION ================= */
 exports.createQuestion = async (req, res) => {
@@ -115,6 +162,7 @@ exports.deleteQuestionById = async (req, res) => {
 };
 
 /* ================= GET QUESTIONS BY TEST SERIES ================= */
+
 exports.getQuestionsByTestSeries = async (req, res) => {
   try {
     const { testSeriesId } = req.params;
@@ -123,16 +171,58 @@ exports.getQuestionsByTestSeries = async (req, res) => {
       return res.status(400).json({ message: "Invalid testSeries id" });
     }
 
-    const questions = await TestSeriesQuestion.find({
-      testSeries: testSeriesId,
-    }).populate("question");
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = { testSeries: testSeriesId };
+
+    const [questions, total] = await Promise.all([
+      TestSeriesQuestion.find(filter)
+        .populate("question")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      TestSeriesQuestion.countDocuments(filter),
+    ]);
+
+    if (!questions.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No questions found for this test series",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
+    }
 
     res.status(200).json({
-      total: questions.length,
+      status: "1",
+      message: "Questions fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + questions.length < total,
+      },
       data: questions.map((q) => q.question),
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({
+      status: "0",
+      error: e.message,
+    });
   }
 };
+
 

@@ -1,6 +1,7 @@
 const User = require("../models/userModel");
 const Image = require("../models/imageModel");
 const mongoose = require("mongoose");
+const { pagination_ } = require("../helpers/pagination");
 
 
 // ✅ Logged-in user profile
@@ -61,13 +62,60 @@ const getMyRank = async (req, res) => {
 
 // (ADMIN ONLY)
 
-// ✅ Get all users 
 const getAllUsers = async (req, res) => {
-  const users = await User.find()
-    .select("-password -otp -otpExpires");
+  try {
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
 
-  res.json({ success: true, data: users });
+    const [users, total] = await Promise.all([
+      User.find()
+        .select("-password -otp -otpExpires")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      User.countDocuments(),
+    ]);
+
+    if (!users.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No users found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
+    }
+
+    res.json({
+      status: "1",
+      message: "Users fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + users.length < total,
+      },
+      data: users,
+    });
+  } catch (e) {
+    res.status(500).json({
+      status: "0",
+      message: e.message,
+    });
+  }
 };
+
 
 // ✅ Get specific user
 const getUserById = async (req, res) => {

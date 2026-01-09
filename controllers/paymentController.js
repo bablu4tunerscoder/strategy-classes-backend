@@ -1,6 +1,7 @@
 const Payment = require("../models/paymentModel");
 const razorpay = require("../config/razorpay");
 const crypto = require("crypto");
+const { pagination_ } = require("../helpers/pagination");
 
 
 /* ================= CREATE ORDER ================= */
@@ -104,37 +105,125 @@ const paymentsByUser = async (req, res) => {
   try {
     const user = req.user._id;
 
-    const payments = await Payment.find({
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = {
       user,
       status: "paid",
-    })
-      .populate("course")
-      .populate("quiz")
-      .populate("uploads");
+    };
 
-    res.json({ count: payments.length, payments });
+    const [payments, total] = await Promise.all([
+      Payment.find(filter)
+        .populate("course")
+        .populate("quiz")
+        .populate("uploads")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      Payment.countDocuments(filter),
+    ]);
+
+    if (!payments.length) {
+      return res.json({
+        status: "0",
+        message: "No payments found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        payments: [],
+      });
+    }
+
+    res.json({
+      status: "1",
+      count: payments.length,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + payments.length < total,
+      },
+      payments,
+    });
   } catch (e) {
-    res.status(500).json({ message: e.message });
+    res.status(500).json({
+      status: "0",
+      message: e.message,
+    });
   }
 };
 
 /* ================= ADMIN: ALL USERS PURCHASES ================= */
 const fetchAllUsersPurchaseHistory = async (req, res) => {
   try {
-    const payments = await Payment.find({ status: "paid" })
-      .populate("user", "name email phoneNumber")
-      .populate("course")
-      .populate("quiz")
-      .populate("uploads");
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = { status: "paid" };
+
+    const [payments, total] = await Promise.all([
+      Payment.find(filter)
+        .populate("user", "name email phoneNumber")
+        .populate("course")
+        .populate("quiz")
+        .populate("uploads")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      Payment.countDocuments(filter),
+    ]);
+
+    if (!payments.length) {
+      return res.json({
+        status: "0",
+        message: "No payments found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        payments: [],
+      });
+    }
 
     res.json({
+      status: "1",
       totalPayments: payments.length,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + payments.length < total,
+      },
       payments,
     });
   } catch (e) {
-    res.status(500).json({ message: e.message });
+    res.status(500).json({
+      status: "0",
+      message: e.message,
+    });
   }
 };
+
 
 /* ================= FREE NOTES / MANUAL PAID ================= */
 const uploadedNotes = async (req, res) => {

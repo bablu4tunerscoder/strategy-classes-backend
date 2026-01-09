@@ -2,6 +2,7 @@ const UploadData = require("../models/uploadModels");
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
+const { pagination_ } = require("../helpers/pagination");
 
 
 const createUpload = async (req, res) => {
@@ -70,16 +71,55 @@ const getAllUploads = async (req, res) => {
     if (subject) filter.subject = subject;
     if (upload_type) filter.upload_type = upload_type;
 
-    const uploads = await UploadData.find(filter)
-      .populate("subject")
-      .sort({ createdAt: -1 });
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const [uploads, total] = await Promise.all([
+      UploadData.find(filter)
+        .populate("subject")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      UploadData.countDocuments(filter),
+    ]);
+
+    if (!uploads.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No uploads found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
+    }
 
     res.status(200).json({
       status: "1",
+      message: "Uploads fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + uploads.length < total,
+      },
       data: uploads,
     });
   } catch (e) {
-    res.status(500).json({ message: e.message });
+    res.status(500).json({
+      status: "0",
+      message: e.message,
+    });
   }
 };
 

@@ -1,22 +1,65 @@
 const mongoose = require("mongoose");
 const PostTestSeries = require("../models/testSeriesPostModels");
 const path = require("path");
+const { pagination_ } = require("../helpers/pagination");
 
 /* ================= GET ALL TEST SERIES ================= */
+
 const getQuizzes = async (req, res) => {
   try {
-    const series = await PostTestSeries.find()
-      .populate("subject", "subject_name")
-      .populate("course", "title");
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const [series, total] = await Promise.all([
+      PostTestSeries.find()
+        .populate("subject", "subject_name")
+        .populate("course", "title")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      PostTestSeries.countDocuments(),
+    ]);
+
+    if (!series.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No Test Series found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
+    }
 
     res.status(200).json({
+      status: "1",
       message: "All Test Series fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + series.length < total,
+      },
       data: series,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      status: "0",
+      error: err.message,
+    });
   }
 };
+
 
 /* ================= CREATE TEST SERIES ================= */
 const createNewQuiz = async (req, res) => {
@@ -168,6 +211,7 @@ const deleteQuizById = async (req, res) => {
 };
 
 /* ================= GET SERIES BY SUBJECT ================= */
+
 const getSeriesWithSubjectId = async (req, res) => {
   try {
     const { subjectId } = req.params;
@@ -176,15 +220,59 @@ const getSeriesWithSubjectId = async (req, res) => {
       return res.status(400).json({ error: "Invalid subject id" });
     }
 
-    const series = await PostTestSeries.find({ subject: subjectId });
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = { subject: subjectId };
+
+    const [series, total] = await Promise.all([
+      PostTestSeries.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      PostTestSeries.countDocuments(filter),
+    ]);
+
+    if (!series.length) {
+      return res.status(404).json({
+        status: "0",
+        message: "No test series found for this subject",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
+    }
 
     res.status(200).json({
+      status: "1",
+      message: "Test series fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + series.length < total,
+      },
       data: series,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      status: "0",
+      error: err.message,
+    });
   }
 };
+
 
 module.exports = {
   getQuizzes,

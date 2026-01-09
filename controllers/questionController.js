@@ -1,3 +1,4 @@
+const { pagination_ } = require("../helpers/pagination");
 const { Question } = require("../models/questionModel");
 const Postquiz = require("../models/quizdataModel");
 const mongoose = require("mongoose");
@@ -5,22 +6,61 @@ const mongoose = require("mongoose");
 /* =====================================
    1️⃣ Get All Questions
 ===================================== */
+
 const getAllQuestions = async (req, res) => {
   try {
-    const questions = await Question.find().populate("quiz");
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const [questions, total] = await Promise.all([
+      Question.find()
+        .populate("quiz")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      Question.countDocuments(),
+    ]);
 
     if (!questions || questions.length === 0) {
-      return res.status(404).json({ message: "No questions found" });
+      return res.status(404).json({
+        status: "0",
+        message: "No questions found",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
+      });
     }
 
     res.status(200).json({
+      status: "1",
       message: "Questions retrieved successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + questions.length < total,
+      },
       data: questions,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      status: "0",
+      error: error.message,
+    });
   }
 };
+
 
 
 const createQuestions = async (req, res) => {
@@ -193,6 +233,8 @@ const deleteById = async (req, res) => {
 /* =====================================
    5️⃣ Get Questions by Quiz ID
 ===================================== */
+
+
 const getQuestionsByQuizId = async (req, res) => {
   try {
     const { quiz_id } = req.params;
@@ -201,22 +243,59 @@ const getQuestionsByQuizId = async (req, res) => {
       return res.status(400).json({ error: "Invalid quiz ID" });
     }
 
-    const questions = await Question.find({ quiz: quiz_id });
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = { quiz: quiz_id };
+
+    const [questions, total] = await Promise.all([
+      Question.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      Question.countDocuments(filter),
+    ]);
 
     if (!questions.length) {
       return res.status(404).json({
+        status: "0",
         message: "No questions found for this quiz",
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasPrevPage,
+          hasNextPage: false,
+        },
+        data: [],
       });
     }
 
     res.status(200).json({
+      status: "1",
       message: "Questions fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + questions.length < total,
+      },
       data: questions,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      status: "0",
+      error: error.message,
+    });
   }
 };
+
 
 module.exports = {
   getAllQuestions,

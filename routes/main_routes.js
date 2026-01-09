@@ -22,7 +22,7 @@ router.use("/subject", subjectRouter);
 router.use("/test-series-progress", testSeriesProgress);
 router.use("/test-series-question", testSeriesQuestion);
 router.use("/test-series", testSeries);
-router.use("/uploader", uploadRouter);
+
 router.use("/youtube", youtubeRoutes);
 
 

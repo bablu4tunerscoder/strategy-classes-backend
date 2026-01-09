@@ -1,3 +1,4 @@
+const { pagination_ } = require("../helpers/pagination");
 const blogsModel = require("../models/blogModel");
 const coursesModel = require("../models/courseModel");
 const path = require("path");
@@ -5,25 +6,55 @@ const path = require("path");
 /**
  * Get All Published Blogs
  */
+
+
 const findAllBlogs = async (req, res) => {
   try {
-    const blogs = await blogsModel
-      .find({ blog_status: "Published" })
-      .sort({ createdAt: -1 });
+    const { page, limit, skip, hasPrevPage } = pagination_(req.query, {
+      defaultLimit: 10,
+      maxLimit: 60,
+    });
+
+    const filter = { blog_status: "Published" };
+
+    const [blogs, total] = await Promise.all([
+      blogsModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      blogsModel.countDocuments(filter),
+    ]);
 
     if (!blogs.length) {
-      return res.status(404).json({ status: "0", message: "No blogs found" });
+      return res.status(404).json({
+        status: "0",
+        message: "No blogs found",
+      });
     }
 
     res.status(200).json({
       status: "1",
       message: "Blogs fetched successfully",
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasPrevPage,
+        hasNextPage: skip + blogs.length < total,
+      },
       data: blogs,
     });
   } catch (error) {
-    res.status(500).json({ status: "0", message: "Internal Server Error" });
+    res.status(500).json({
+      status: "0",
+      message: "Internal Server Error",
+    });
   }
 };
+
 
 /**
  * Get Blog By Slug (Public)
